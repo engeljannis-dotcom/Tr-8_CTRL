@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>TR-8 CTRL</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --bg: #050507;
+    --bg2: #0d0d12;
+    --bg3: #13131a;
+    --panel: #18181f;
+    --border: #2a2a38;
+    --accent: #ff3d00;
+    --accent2: #00e5ff;
+    --accent3: #76ff03;
+    --text: #e0e0f0;
+    --text-dim: #555570;
+    --step-off: #1a1a24;
+    --step-on: #ff3d00;
+    --step-on2: #ff8c00;
+    --active-step: #00e5ff;
+    --grid: rgba(255,255,255,0.03);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanlines overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 1.4rem;
+    letter-spacing: 4px;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(255,61,0,0.5);
+  }
+  .logo span { color: var(--text-dim); font-size: 0.7rem; display: block; letter-spacing: 2px; margin-top: -2px; }
+
+  .midi-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+  }
+  .status-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #ff1744;
+    box-shadow: 0 0 8px #ff1744;
+    transition: all 0.3s;
+  }
+  .status-dot.connected { background: var(--accent3); box-shadow: 0 0 10px var(--accent3); }
+
+  .section {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.55rem;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  /* MIDI selector */
+  select {
+    width: 100%;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.75rem;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23555570'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+
+  /* Transport */
+  .transport {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .btn {
+    padding: 14px 8px;
+    border: none;
+    border-radius: 6px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.1s;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn:active { transform: scale(0.96); }
+
+  .btn-play {
+    background: var(--accent3);
+    color: #000;
+    grid-column: 1;
+  }
+  .btn-play.playing {
+    background: var(--accent);
+    color: #fff;
+    animation: pulse 0.5s ease infinite alternate;
+  }
+  @keyframes pulse { from { box-shadow: 0 0 10px var(--accent); } to { box-shadow: 0 0 25px var(--accent), 0 0 50px rgba(255,61,0,0.3); } }
+
+  .btn-gen {
+    background: var(--accent2);
+    color: #000;
+  }
+
+  .btn-sm {
+    padding: 10px;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    font-size: 0.65rem;
+  }
+
+  /* BPM */
+  .bpm-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .bpm-display {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 900;
+    color: var(--accent2);
+    text-shadow: 0 0 15px rgba(0,229,255,0.4);
+    min-width: 70px;
+  }
+  .bpm-label { font-size: 0.6rem; color: var(--text-dim); letter-spacing: 2px; }
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+    flex: 1;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--accent2);
+    box-shadow: 0 0 8px rgba(0,229,255,0.6);
+    cursor: pointer;
+  }
+
+  /* Step grid */
+  .grid-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .step-grid {
+    display: grid;
+    grid-template-columns: 44px repeat(16, 1fr);
+    gap: 3px;
+    min-width: 560px;
+  }
+  .inst-label {
+    display: flex;
+    align-items: center;
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    padding-right: 4px;
+    justify-content: flex-end;
+  }
+  .step-btn {
+    height: 30px;
+    border: none;
+    border-radius: 3px;
+    background: var(--step-off);
+    cursor: pointer;
+    transition: all 0.1s;
+    position: relative;
+  }
+  .step-btn.on {
+    background: var(--step-on);
+    box-shadow: 0 0 8px rgba(255,61,0,0.5);
+  }
+  .step-btn.active {
+    box-shadow: inset 0 0 0 2px var(--active-step);
+  }
+  .step-btn.on.active {
+    background: var(--active-step);
+    box-shadow: 0 0 12px rgba(0,229,255,0.8);
+  }
+  /* Beat markers */
+  .step-btn:nth-child(4n+2),
+  .step-btn:nth-child(4n+3),
+  .step-btn:nth-child(4n+4),
+  .step-btn:nth-child(4n+5) {
+    /* visual beat grouping done via opacity instead */
+  }
+  .beat-group-1 .step-btn { opacity: 1; }
+  .beat-group-2 .step-btn { opacity: 0.85; }
+
+  /* CC Automation */
+  .cc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .cc-lane {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+  }
+  .cc-lane-label {
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .cc-lane-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .cc-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .cc-slider-label { font-size: 0.6rem; color: var(--text-dim); width: 42px; }
+  .cc-val { font-size: 0.65rem; color: var(--accent2); width: 28px; text-align: right; }
+  .cc-slider { flex: 1; height: 4px; }
+  .cc-slider::-webkit-slider-thumb { width: 18px; height: 18px; }
+
+  /* Snapshots */
+  .snapshot-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .snap-btn {
+    padding: 10px 4px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 6px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.55rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    position: relative;
+  }
+  .snap-btn.saved { border-color: var(--accent2); color: var(--accent2); }
+  .snap-btn.active-snap { background: var(--accent2); color: #000; border-color: var(--accent2); }
+  .snap-btn .snap-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent3);
+    position: absolute;
+    top: 4px; right: 4px;
+    display: none;
+  }
+  .snap-btn.saved .snap-dot { display: block; }
+
+  .snap-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  /* Warning banner */
+  .warning {
+    background: rgba(255,61,0,0.1);
+    border: 1px solid rgba(255,61,0,0.3);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 0.68rem;
+    line-height: 1.5;
+    color: #ffab91;
+    margin-bottom: 8px;
+  }
+  .warning strong { color: var(--accent); }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 6px 0;
+  }
+
+  /* Velocity sliders per track */
+  .vel-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .vel-label { font-size: 0.55rem; color: var(--text-dim); width: 44px; text-align: right; }
+
+  /* Step accent (long press) indicator */
+  .step-btn.accent::after {
+    content: '';
+    position: absolute;
+    bottom: 2px; left: 50%; transform: translateX(-50%);
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: #fff;
+  }
+
+  .current-step-indicator {
+    background: var(--bg3);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.6rem;
+    color: var(--accent2);
+    letter-spacing: 1px;
+    font-family: 'Orbitron', sans-serif;
+  }
+  
+  .transport-row2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  footer {
+    padding: 16px;
+    text-align: center;
+    font-size: 0.55rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">TR-8 CTRL <span>MIDI SEQUENCER</span></div>
+  <div class="midi-status">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">NO MIDI</span>
+  </div>
+</header>
+
+<!-- WARNING -->
+<div class="section">
+  <div class="warning">
+    <strong>⚠ LOCAL CONTROL:</strong> Schalte auf der TR-8 <strong>Local Control OFF</strong>, damit jede Note nicht doppelt getriggert wird (einmal intern, einmal via MIDI). Menü → Global → Local Control: OFF.
+  </div>
+  
+  <div class="section-label">MIDI Output</div>
+  <select id="midiSelect"><option value="">– Kein Interface erkannt –</option></select>
+</div>
+
+<!-- TRANSPORT -->
+<div class="section">
+  <div class="section-label">Transport & Clock</div>
+  <div class="transport">
+    <button class="btn btn-play" id="playBtn" onclick="togglePlay()">▶ START</button>
+    <button class="btn btn-gen" onclick="generatePattern()">⚙ GENERATE</button>
+  </div>
+  <div class="bpm-row" style="margin-top:10px;">
+    <div>
+      <div class="bpm-display" id="bpmDisplay">120</div>
+      <div class="bpm-label">BPM</div>
+    </div>
+    <input type="range" id="bpmSlider" min="60" max="200" value="120" oninput="setBpm(this.value)">
+    <div class="current-step-indicator" id="stepIndicator">STEP –</div>
+  </div>
+  <div class="transport-row2">
+    <button class="btn btn-sm" onclick="setSwing(0)">SWING 0%</button>
+    <button class="btn btn-sm" onclick="setSwing(0.05)">SWING 5%</button>
+    <button class="btn btn-sm" onclick="setSwing(0.1)">SWING 10%</button>
+  </div>
+</div>
+
+<!-- STEP GRID -->
+<div class="section">
+  <div class="section-label">Pattern Grid — 16 Steps</div>
+  <div class="grid-container">
+    <div class="step-grid" id="stepGrid"></div>
+  </div>
+</div>
+
+<!-- VELOCITY PER TRACK -->
+<div class="section">
+  <div class="section-label">Velocity / Track</div>
+  <div id="velGrid"></div>
+</div>
+
+<!-- CC AUTOMATION -->
+<div class="section">
+  <div class="section-label">CC Automation — Vollständige TR-8 Map (Live → MIDI CH10)</div>
+  <div class="cc-grid" id="ccGrid"></div>
+</div>
+
+<!-- SNAPSHOTS -->
+<div class="section">
+  <div class="section-label">Snapshots (Scenes)</div>
+  <div class="snapshot-row" id="snapshotRow"></div>
+  <div class="snap-controls">
+    <button class="btn btn-sm" onclick="saveSnapshot()">💾 SAVE SCENE</button>
+    <button class="btn btn-sm" onclick="clearSnapshot()">✕ CLEAR SCENE</button>
+  </div>
+</div>
+
+<footer>TR-8 CTRL v1.0 · Web MIDI API · CH 10 · OLED DARK</footer>
+
+<script>
+// ─── Constants ───────────────────────────────────────────────
+const MIDI_CH = 9; // channel 10 (0-indexed)
+const STEPS = 16;
+
+const INSTRUMENTS = [
+  { name: 'BD', note: 36, color: '#ff3d00' },
+  { name: 'SD', note: 38, color: '#ff6d00' },
+  { name: 'LT', note: 43, color: '#ffd600' },
+  { name: 'MT', note: 47, color: '#76ff03' },
+  { name: 'HT', note: 50, color: '#00e5ff' },
+  { name: 'RS', note: 37, color: '#e040fb' },
+  { name: 'HC', note: 39, color: '#ff4081' },
+  { name: 'CH', note: 42, color: '#40c4ff' },
+  { name: 'OH', note: 46, color: '#69f0ae' },
+  { name: 'CC', note: 49, color: '#ffab40' },
+  { name: 'RC', note: 51, color: '#ff80ab' },
+];
+
+// ── VERIFIED TR-8 CC MAP ────────────────────────────────────────
+// Source: Official TR-8 MIDI implementation (confirmed)
+const CC_PARAMS = [
+  { group: 'BD', params: [
+    { name: 'Tune',   cc: 20, val: 64 },
+    { name: 'Attack', cc: 21, val: 64 },
+    { name: 'Comp',   cc: 22, val: 0  },
+    { name: 'Decay',  cc: 23, val: 64 },
+    { name: 'Level',  cc: 24, val: 100},
+  ]},
+  { group: 'SD', params: [
+    { name: 'Tune',   cc: 25, val: 64 },
+    { name: 'Snappy', cc: 26, val: 64 },
+    { name: 'Comp',   cc: 27, val: 0  },
+    { name: 'Decay',  cc: 28, val: 64 },
+    { name: 'Level',  cc: 29, val: 100},
+  ]},
+  { group: 'LT', params: [
+    { name: 'Tune',  cc: 46, val: 64 },
+    { name: 'Decay', cc: 47, val: 64 },
+    { name: 'Level', cc: 48, val: 100},
+  ]},
+  { group: 'MT', params: [
+    { name: 'Tune',  cc: 49, val: 64 },
+    { name: 'Decay', cc: 50, val: 64 },
+    { name: 'Level', cc: 51, val: 100},
+  ]},
+  { group: 'HT', params: [
+    { name: 'Tune',  cc: 52, val: 64 },
+    { name: 'Decay', cc: 53, val: 64 },
+    { name: 'Level', cc: 54, val: 100},
+  ]},
+  { group: 'RS', params: [
+    { name: 'Tune',  cc: 55, val: 64 },
+    { name: 'Decay', cc: 56, val: 64 },
+    { name: 'Level', cc: 57, val: 80 },
+  ]},
+  { group: 'HC', params: [
+    { name: 'Tune',  cc: 58, val: 64 },
+    { name: 'Decay', cc: 59, val: 64 },
+    { name: 'Level', cc: 60, val: 80 },
+  ]},
+  { group: 'CH', params: [
+    { name: 'Tune',  cc: 61, val: 64 },
+    { name: 'Decay', cc: 62, val: 64 },
+    { name: 'Level', cc: 63, val: 90 },
+  ]},
+  { group: 'OH', params: [
+    { name: 'Tune',  cc: 80, val: 64 },
+    { name: 'Decay', cc: 81, val: 64 },
+    { name: 'Level', cc: 82, val: 85 },
+  ]},
+  { group: 'CC', params: [
+    { name: 'Tune',  cc: 83, val: 64 },
+    { name: 'Decay', cc: 84, val: 64 },
+    { name: 'Level', cc: 85, val: 75 },
+  ]},
+  { group: 'RC', params: [
+    { name: 'Tune',  cc: 86, val: 64 },
+    { name: 'Decay', cc: 87, val: 64 },
+    { name: 'Level', cc: 88, val: 80 },
+  ]},
+  { group: 'REVERB', params: [
+    { name: 'Time',  cc: 89, val: 64 },
+    { name: 'Gate',  cc: 90, val: 0  },
+    { name: 'Level', cc: 91, val: 40 },
+  ]},
+  { group: 'DELAY', params: [
+    { name: 'Level',    cc: 16, val: 0  },
+    { name: 'Time',     cc: 17, val: 64 },
+    { name: 'Feedback', cc: 18, val: 40 },
+  ]},
+  { group: 'SCATTER', params: [
+    { name: 'Type',  cc: 68, val: 0 },
+    { name: 'Depth', cc: 69, val: 0 },
+    { name: 'On/Off',cc: 70, val: 0 },
+  ]},
+  { group: 'GLOBAL', params: [
+    { name: 'Shuffle', cc: 9,  val: 0  },
+    { name: 'Accent',  cc: 71, val: 64 },
+    { name: 'Ext Lvl', cc: 12, val: 0  },
+    { name: 'Ext SC',  cc: 13, val: 0  },
+  ]},
+];
+
+// ─── State ───────────────────────────────────────────────────
+let pattern = Array.from({ length: INSTRUMENTS.length }, () => Array(STEPS).fill(false));
+let velocities = Array(INSTRUMENTS.length).fill(100);
+let ccValues = CC_PARAMS.map(g => g.params.map(p => p.val)); // auto-derives from CC_PARAMS
+let snapshots = Array(4).fill(null);
+let activeSnap = -1;
+
+let bpm = 120;
+let swing = 0;
+let isPlaying = false;
+let currentStep = 0;
+let scheduledTime = 0;
+let nextStepTime = 0;
+let lookahead = 25.0;   // ms
+let scheduleAhead = 0.1; // sec
+let timerID = null;
+let stepCallbacks = [];
+
+let midiAccess = null;
+let midiOutput = null;
+let audioCtx = null;
+
+// ─── MIDI Init ────────────────────────────────────────────────
+async function initMIDI() {
+  if (!navigator.requestMIDIAccess) {
+    document.getElementById('statusText').textContent = 'NO WEB MIDI';
+    return;
+  }
+  try {
+    midiAccess = await navigator.requestMIDIAccess({ sysex: false });
+    populateMidiOutputs();
+    midiAccess.onstatechange = () => populateMidiOutputs();
+    document.getElementById('statusDot').classList.add('connected');
+    document.getElementById('statusText').textContent = 'MIDI OK';
+  } catch(e) {
+    document.getElementById('statusText').textContent = 'ACCESS DENIED';
+  }
+}
+
+function populateMidiOutputs() {
+  const sel = document.getElementById('midiSelect');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">– Select MIDI Out –</option>';
+  for (let [id, out] of midiAccess.outputs) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = out.name;
+    sel.appendChild(opt);
+  }
+  if (prev) sel.value = prev;
+  sel.onchange = () => {
+    midiOutput = midiAccess.outputs.get(sel.value) || null;
+    const dot = document.getElementById('statusDot');
+    const txt = document.getElementById('statusText');
+    if (midiOutput) {
+      dot.classList.add('connected');
+      txt.textContent = midiOutput.name.substring(0,12).toUpperCase();
+    } else {
+      dot.classList.remove('connected');
+      txt.textContent = 'NO OUTPUT';
+    }
+  };
+  // Auto-select first output
+  if (!midiOutput && sel.options.length > 1) {
+    sel.selectedIndex = 1;
+    sel.onchange();
+  }
+}
+
+function sendNote(note, velocity, timeMs) {
+  if (!midiOutput) return;
+  const statusOn  = 0x90 | MIDI_CH;
+  const statusOff = 0x80 | MIDI_CH;
+  midiOutput.send([statusOn, note, velocity], timeMs);
+  midiOutput.send([statusOff, note, 0], timeMs + 50);
+}
+
+function sendCC(cc, value) {
+  if (!midiOutput) return;
+  midiOutput.send([0xB0 | MIDI_CH, cc, Math.round(value)]);
+}
+
+// ─── Scheduler (Web Audio Clock) ─────────────────────────────
+function getStepDuration(step) {
+  const base = 60.0 / bpm / 4;
+  if (swing > 0 && step % 2 === 1) return base * (1 + swing * 2);
+  return base;
+}
+
+function scheduler() {
+  if (!audioCtx) return;
+  while (nextStepTime < audioCtx.currentTime + scheduleAhead) {
+    scheduleStep(currentStep, nextStepTime);
+    nextStepTime += getStepDuration(currentStep);
+    currentStep = (currentStep + 1) % STEPS;
+  }
+  timerID = setTimeout(scheduler, lookahead);
+}
+
+function scheduleStep(step, time) {
+  const timeMs = (time - audioCtx.currentTime) * 1000 + performance.now();
+  for (let i = 0; i < INSTRUMENTS.length; i++) {
+    if (pattern[i][step]) {
+      sendNote(INSTRUMENTS[i].note, velocities[i], timeMs);
+    }
+  }
+  // UI update (approx, not sample-accurate)
+  const delay = (time - audioCtx.currentTime) * 1000;
+  setTimeout(() => updateStepUI(step), Math.max(0, delay));
+}
+
+function updateStepUI(step) {
+  document.querySelectorAll('.step-btn.active').forEach(b => b.classList.remove('active'));
+  for (let i = 0; i < INSTRUMENTS.length; i++) {
+    const btn = document.getElementById(`s${i}_${step}`);
+    if (btn) btn.classList.add('active');
+  }
+  document.getElementById('stepIndicator').textContent = `STEP ${step + 1}`;
+}
+
+function togglePlay() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  isPlaying = !isPlaying;
+  const btn = document.getElementById('playBtn');
+  if (isPlaying) {
+    currentStep = 0;
+    nextStepTime = audioCtx.currentTime + 0.05;
+    scheduler();
+    btn.textContent = '■ STOP';
+    btn.classList.add('playing');
+  } else {
+    clearTimeout(timerID);
+    timerID = null;
+    btn.textContent = '▶ START';
+    btn.classList.remove('playing');
+    document.querySelectorAll('.step-btn.active').forEach(b => b.classList.remove('active'));
+    document.getElementById('stepIndicator').textContent = 'STEP –';
+  }
+}
+
+function setBpm(val) {
+  bpm = parseInt(val);
+  document.getElementById('bpmDisplay').textContent = bpm;
+}
+
+function setSwing(val) { swing = val; }
+
+// ─── Pattern Generation ───────────────────────────────────────
+const PATTERNS = {
+  BD: [[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],
+       [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1,0]],
+  SD: [[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[0,0,1,0,0,0,1,0,0,0,1,0,0,1,0,0]],
+  CH: [[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
+       [1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1]],
+};
+
+function generatePattern() {
+  // Generative algorithm: Euclidean + random fills
+  for (let i = 0; i < INSTRUMENTS.length; i++) {
+    const density = getDensity(INSTRUMENTS[i].name);
+    pattern[i] = euclidean(STEPS, Math.round(density * STEPS));
+  }
+  renderGrid();
+}
+
+function getDensity(name) {
+  const d = { BD:0.25, SD:0.15, LT:0.1, MT:0.1, HT:0.1,
+               RS:0.06, HC:0.06, CH:0.4, OH:0.1, CC:0.05, RC:0.05 };
+  return (d[name] || 0.1) * (0.5 + Math.random());
+}
+
+function euclidean(n, k) {
+  if (k <= 0) return Array(n).fill(false);
+  if (k >= n) return Array(n).fill(true);
+  let counts = [];
+  let remainders = [];
+  let divisor = n - k;
+  remainders.push(k);
+  let level = 0;
+  do {
+    counts.push(Math.floor(divisor / remainders[level]));
+    remainders.push(divisor % remainders[level]);
+    divisor = remainders[level];
+    level++;
+  } while (remainders[level] > 1);
+  counts.push(1);
+  function build(level) {
+    if (level == -1) return [false];
+    if (level == -2) return [true];
+    let res = [];
+    for (let i = 0; i < counts[level]; i++) res = res.concat(build(level - 1));
+    if (remainders[level] > 0) res = res.concat(build(level - 2));
+    return res;
+  }
+  let seq = build(level - 1);
+  // Rotate to start on beat
+  let idx = seq.indexOf(true);
+  return [...seq.slice(idx), ...seq.slice(0, idx)];
+}
+
+// ─── UI Rendering ─────────────────────────────────────────────
+function renderGrid() {
+  const grid = document.getElementById('stepGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < INSTRUMENTS.length; i++) {
+    const label = document.createElement('div');
+    label.className = 'inst-label';
+    label.textContent = INSTRUMENTS[i].name;
+    label.style.color = INSTRUMENTS[i].color;
+    grid.appendChild(label);
+    for (let s = 0; s < STEPS; s++) {
+      const btn = document.createElement('button');
+      btn.className = 'step-btn' + (pattern[i][s] ? ' on' : '');
+      btn.id = `s${i}_${s}`;
+      btn.style.background = pattern[i][s] ? INSTRUMENTS[i].color + 'cc' : '';
+      // Beat group shade
+      if (Math.floor(s / 4) % 2 === 1) btn.style.opacity = '0.8';
+      btn.addEventListener('click', () => toggleStep(i, s, btn));
+      // Long press = accent (velocity boost)
+      let pressTimer;
+      btn.addEventListener('touchstart', () => {
+        pressTimer = setTimeout(() => {
+          btn.classList.toggle('accent');
+          velocities[i] = btn.classList.contains('accent') ? 127 : 100;
+        }, 500);
+      });
+      btn.addEventListener('touchend', () => clearTimeout(pressTimer));
+      grid.appendChild(btn);
+    }
+  }
+}
+
+function toggleStep(i, s, btn) {
+  pattern[i][s] = !pattern[i][s];
+  btn.classList.toggle('on', pattern[i][s]);
+  btn.style.background = pattern[i][s] ? INSTRUMENTS[i].color + 'cc' : '';
+}
+
+function renderVelocities() {
+  const vg = document.getElementById('velGrid');
+  vg.innerHTML = '';
+  for (let i = 0; i < INSTRUMENTS.length; i++) {
+    const row = document.createElement('div');
+    row.className = 'vel-row';
+    row.innerHTML = `
+      <div class="vel-label" style="color:${INSTRUMENTS[i].color}">${INSTRUMENTS[i].name}</div>
+      <input type="range" class="cc-slider" min="1" max="127" value="${velocities[i]}"
+        style="accent-color:${INSTRUMENTS[i].color}"
+        oninput="velocities[${i}]=parseInt(this.value)">
+    `;
+    vg.appendChild(row);
+  }
+}
+
+function renderCC() {
+  const cg = document.getElementById('ccGrid');
+  cg.innerHTML = '';
+  // Map group names to instrument colors
+  const instColorMap = {};
+  INSTRUMENTS.forEach(inst => { instColorMap[inst.name] = inst.color; });
+  const globalColors = { REVERB:'#40c4ff', DELAY:'#69f0ae', SCATTER:'#ff80ab', GLOBAL:'#ffab40' };
+
+  CC_PARAMS.forEach((grp, gi) => {
+    const color = instColorMap[grp.group] || globalColors[grp.group] || '#555570';
+    const lane = document.createElement('div');
+    lane.className = 'cc-lane';
+    lane.style.borderColor = color + '55';
+    lane.innerHTML = `<div class="cc-lane-title" style="color:${color}">${grp.group}</div>`;
+    grp.params.forEach((p, pi) => {
+      const row = document.createElement('div');
+      row.className = 'cc-slider-row';
+      const valId = `cc_${gi}_${pi}`;
+      row.innerHTML = `
+        <span class="cc-slider-label">${p.name}</span>
+        <input type="range" class="cc-slider" min="0" max="127" value="${ccValues[gi][pi]}"
+          style="accent-color:${color}"
+          oninput="updateCC(${gi},${pi},this.value,'${valId}')">
+        <span class="cc-val" id="${valId}" style="color:${color}">${ccValues[gi][pi]}</span>
+      `;
+      lane.appendChild(row);
+    });
+    cg.appendChild(lane);
+  });
+}
+
+function updateCC(gi, pi, val, id) {
+  ccValues[gi][pi] = parseInt(val);
+  document.getElementById(id).textContent = val;
+  sendCC(CC_PARAMS[gi].params[pi].cc, val);
+}
+
+function renderSnapshots() {
+  const sr = document.getElementById('snapshotRow');
+  sr.innerHTML = '';
+  for (let i = 0; i < 4; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'snap-btn' + (snapshots[i] ? ' saved' : '') + (activeSnap === i ? ' active-snap' : '');
+    btn.innerHTML = `SCENE ${i+1}<div class="snap-dot"></div>`;
+    btn.onclick = () => loadSnapshot(i);
+    sr.appendChild(btn);
+  }
+}
+
+function saveSnapshot() {
+  const idx = activeSnap >= 0 ? activeSnap : 0;
+  activeSnap = idx;
+  snapshots[idx] = {
+    pattern: JSON.parse(JSON.stringify(pattern)),
+    velocities: [...velocities],
+    ccValues: JSON.parse(JSON.stringify(ccValues)),
+    bpm,
+  };
+  renderSnapshots();
+}
+
+function loadSnapshot(idx) {
+  if (!snapshots[idx]) { activeSnap = idx; renderSnapshots(); return; }
+  activeSnap = idx;
+  const s = snapshots[idx];
+  pattern = JSON.parse(JSON.stringify(s.pattern));
+  velocities = [...s.velocities];
+  ccValues = JSON.parse(JSON.stringify(s.ccValues));
+  bpm = s.bpm;
+  document.getElementById('bpmSlider').value = bpm;
+  document.getElementById('bpmDisplay').textContent = bpm;
+  renderGrid();
+  renderVelocities();
+  renderCC();
+  // Send all CCs immediately
+  CC_PARAMS.forEach((grp, gi) => grp.params.forEach((p, pi) => sendCC(p.cc, ccValues[gi][pi])));
+  renderSnapshots();
+}
+
+function clearSnapshot() {
+  if (activeSnap >= 0) {
+    snapshots[activeSnap] = null;
+    renderSnapshots();
+  }
+}
+
+// ─── Init ─────────────────────────────────────────────────────
+(function init() {
+  generatePattern();
+  renderVelocities();
+  renderCC();
+  renderSnapshots();
+  initMIDI();
+})();
+</script>
+</body>
+</html>
